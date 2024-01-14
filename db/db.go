@@ -135,8 +135,13 @@ func (d *Db) Select(coll string, filter Filter) ([]M, error) {
 					}
 				}
 			}
+			if include {
+				results = append(results, data)
+			}
 		}
+		return nil
 	})
+	return results, tx.Commit()
 }
 
 func (d *Db) Close() error {
