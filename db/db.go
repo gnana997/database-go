@@ -16,6 +16,23 @@ const (
 
 type ValueType int
 
+func (v ValueType) String() string {
+	switch v {
+	case ValueTypeString:
+		return "string"
+	case ValueTypeInt:
+		return "int"
+	case ValueTypeBool:
+		return "bool"
+	case ValueTypeFloat:
+		return "float"
+	case ValueTypeUnknown:
+		return "unknown"
+	default:
+		return "unknown"
+	}
+}
+
 const (
 	ValueTypeUnknown ValueType = iota
 	ValueTypeString
@@ -88,12 +105,14 @@ func (d *Db) Insert(collName string, data M) (*uuid.UUID, error) {
 	}
 
 	for k, v := range data {
-		valueTypeInfo, err := GetValueTypeInfo(v)
+		valueTypeInfo, err := getValueTypeInfo(v)
 		if err != nil {
 			return nil, err
 		}
 
-		recordBucket.Put([]byte(k), valueTypeInfo.payload)
+		if err := recordBucket.Put([]byte(k+"_"+valueTypeInfo.valueType.String()), valueTypeInfo.payload); err != nil {
+			return nil, err
+		}
 	}
 
 	return &id, tx.Commit()
@@ -120,7 +139,14 @@ func (d *Db) Select(coll string, filter Filter) ([]M, error) {
 
 			data := M{}
 			entryBucket.ForEach(func(k, v []byte) error {
-				data[string(k)] = string(v)
+				key_type := string(k)
+				key := key_type[:len(key_type)-3]
+				valueType := key_type[len(key_type)-2:]
+				val, err := getValueFromBytes(valueType, v)
+				if err != nil {
+					return err
+				}
+				data[key] = val
 				return nil
 			})
 			include := true
@@ -153,7 +179,7 @@ type ValueTypeInfo struct {
 	payload   []byte
 }
 
-func GetValueTypeInfo(v any) (ValueTypeInfo, error) {
+func getValueTypeInfo(v any) (ValueTypeInfo, error) {
 	switch it := v.(type) {
 	case string:
 		return ValueTypeInfo{
@@ -189,6 +215,21 @@ func GetValueTypeInfo(v any) (ValueTypeInfo, error) {
 		return ValueTypeInfo{
 			valueType: ValueTypeUnknown,
 		}, fmt.Errorf("unsupported type %s", reflect.TypeOf(v))
+	}
+}
+
+func getValueFromBytes(valueType string, payload []byte) (any, error) {
+	switch valueType {
+	case "0":
+		return string(payload), nil
+	case "1":
+		return int(binary.LittleEndian.Uint32(payload)), nil
+	case "2":
+		return math.Float64frombits(binary.LittleEndian.Uint64(payload)), nil
+	case "3":
+		return payload[0] == 1, nil
+	default:
+		return nil, fmt.Errorf("unsupported type %s", valueType)
 	}
 }
 
