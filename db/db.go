@@ -232,19 +232,3 @@ func getValueFromBytes(valueType string, payload []byte) (any, error) {
 		return nil, fmt.Errorf("unsupported type %s", valueType)
 	}
 }
-
-// db.Update(func(tx *bbolt.Tx) error {
-// 	uuid := uuid.New()
-
-// 	for k, v := range user {
-// 		if err := bucket.Put([]byte(k), []byte(v)); err != nil {
-// 			return err
-// 		}
-// 	}
-
-// 	if err := bucket.Put([]byte("id"), []byte(uuid.String())); err != nil {
-// 		return err
-// 	}
-
-// 	return nil
-// })
